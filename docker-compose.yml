@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  vw-calculator:
+    image: nginx:alpine
+    container_name: vw-charger
+    restart: unless-stopped
+    ports:
+      - "8555:80"
+    volumes:
+      # Maps the current folder (where index.html is) to the container
+      - .:/usr/share/nginx/html:ro

@@ -1,0 +1,15 @@
+{
+  "name": "ID.7 Charger",
+  "short_name": "ID.7",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111318",
+  "theme_color": "#0b57d0",
+  "icons": [
+    {
+      "src": "favicon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
