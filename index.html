@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VW ID.7 Charging</title>
     
-    <!-- PWA / Favicon Setup -->
     <link rel="manifest" href="manifest.json">
     
-    <!-- Using the VW Logo as the Favicon -->
     <link rel="icon" type="image/jpeg" href="favicon.jpg">
     <link rel="apple-touch-icon" href="favicon.jpg">
     
@@ -16,7 +14,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-    <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -177,22 +174,52 @@
         const now = new Date();
         els.time.value = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
         els.theme.addEventListener('click', () => { const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); });
+        
         function getPower(soc, limit) { let idx = DC_CURVE.findIndex(p => p.soc >= soc); if (idx === -1) return 0; if (idx === 0) return Math.min(limit, DC_CURVE[0].kw); let p1 = DC_CURVE[idx - 1], p2 = DC_CURVE[idx]; let r = (soc - p1.soc) / (p2.soc - p1.soc); return Math.min(limit, p1.kw + (p2.kw - p1.kw) * r); }
+        
         function calc() {
             let start = parseInt(els.sSoc.value); let target = parseInt(els.tSoc.value); let power = parseFloat(els.power.value) || 11;
             if (target < start) { target = start; els.tSoc.value = start; }
             els.sVal.innerText = start + '%'; els.tVal.innerText = target + '%'; els.trackS.style.width = start + '%'; els.trackT.style.width = target + '%';
             els.barE.style.width = start + '%'; els.barA.style.left = start + '%'; els.barA.style.width = (target - start) + '%';
+            
             let isAC = power <= 22; let effPower = power;
             if (isAC) { if (power > MAX_AC_POWER) { effPower = MAX_AC_POWER; els.warn.classList.remove('hidden'); } else { els.warn.classList.add('hidden'); } } else { els.warn.classList.add('hidden'); }
+            
             if (start === target) { els.heroT.innerText = "Complete"; els.finT.innerText = els.time.value; els.dayInd.classList.add('hidden'); els.en.innerText = "0 kWh"; els.spd.innerText = "0 kW"; return; }
+            
             let tHours = 0, tEnergy = 0;
-            for (let s = start; s < target; s++) { let eStep = USABLE_CAPACITY_KWH * 0.01; let pStep = isAC ? effPower : getPower(s, effPower); if (pStep < 1) pStep = 1; tHours += eStep / pStep; tEnergy += eStep; }
+            for (let s = start; s < target; s++) { 
+                let eStep = USABLE_CAPACITY_KWH * 0.01; 
+                // Apply 91% efficiency factor if AC, otherwise rely on the DC curve
+                let pStep = isAC ? (effPower * 0.91) : getPower(s, effPower); 
+                if (pStep < 1) pStep = 1; 
+                tHours += eStep / pStep; 
+                tEnergy += eStep; 
+            }
+            
+            // Add top-end cell balancing penalty (approx 18 mins) for AC charges hitting > 95%
+            if (isAC && target > 95) {
+                tHours += 0.3;
+            }
+
             let h = Math.floor(tHours); let m = Math.round((tHours - h) * 60); if (m === 60) { h++; m = 0; }
             let durStr = ""; if (h > 0) durStr += `${h} hr `; durStr += `${m} min`; els.heroT.innerText = durStr;
             els.en.innerText = `+${tEnergy.toFixed(1)} kWh`; els.spd.innerText = `${(tEnergy/tHours).toFixed(1)} kW`;
-            if (els.time.value) { const [sh, sm] = els.time.value.split(':').map(Number); let end = new Date(); end.setHours(sh, sm, 0, 0); end = new Date(end.getTime() + (tHours * 3600000)); els.finT.innerText = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`; let startD = new Date(); startD.setHours(sh, sm, 0, 0); if (end.getDate() !== startD.getDate()) els.dayInd.classList.remove('hidden'); else els.dayInd.classList.add('hidden'); }
+            
+            if (els.time.value) { 
+                const [sh, sm] = els.time.value.split(':').map(Number); 
+                let end = new Date(); 
+                end.setHours(sh, sm, 0, 0); 
+                end = new Date(end.getTime() + (tHours * 3600000)); 
+                els.finT.innerText = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`; 
+                let startD = new Date(); 
+                startD.setHours(sh, sm, 0, 0); 
+                if (end.getDate() !== startD.getDate()) els.dayInd.classList.remove('hidden'); 
+                else els.dayInd.classList.add('hidden'); 
+            }
         }
+        
         ['input', 'change'].forEach(e => { els.sSoc.addEventListener(e, calc); els.tSoc.addEventListener(e, calc); });
         els.power.addEventListener('input', calc); els.time.addEventListener('input', calc);
         calc();
